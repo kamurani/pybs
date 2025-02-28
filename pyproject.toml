@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pybs"
+version = "0.1.0"
+authors = [
+    {name = "Kâmuran İmran", email = "c.mcmenamie@unsw.edu.au"}
+]
+description = "Python API for PBS HPC job submission"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent", 
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[tool.black]
+line-length = 79
+target-version = ['py38']
+
+[project.urls]
+Homepage = "https://github.com/kamurani/pybs"
+Issues = "https://github.com/kamurani/pybs/issues"
