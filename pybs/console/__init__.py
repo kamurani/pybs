@@ -61,7 +61,7 @@ POLL_INTERVAL = 0.5
 # in on the same node. 
 
     
-from .completion import complete_remote_path, complete_hostname
+from pybs.console.completion import complete_remote_path, complete_hostname
 
 @ck.command()
 @ck.argument(
