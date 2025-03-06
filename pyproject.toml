@@ -1,5 +1,5 @@
 [project]
-name = "pybs"
+name = "pythonpbs"
 version = "0.1.2"
 description = "Python-based PBS job submission"
 authors = [
@@ -15,10 +15,15 @@ dependencies = [
     "setuptools (>=75.8.2,<76.0.0)"
 ]
 
+[tool.poetry]
+packages = [
+    {include = "pybs", from = "."}
+]
+
 [project.scripts]
 pybs = "pybs.console:entry_point"
 
-[tool.poetry]
+
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"

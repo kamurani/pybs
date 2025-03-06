@@ -3,7 +3,7 @@
 
 ## Installation 
 
-`pip install pybs` 
+`pip install pythonpbs` 
 
 ## SSH Configuration 
 
