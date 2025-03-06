@@ -1,7 +1,0 @@
-name: pybs
-channels:
-  - defaults
-dependencies:
-  - anaconda::click
-  - anaconda::python
-prefix: ~/opt/anaconda3/envs/pybs

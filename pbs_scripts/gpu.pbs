@@ -1,0 +1,12 @@
+#! /usr/bin/env bash
+
+#PBS -l select=1:ncpus=6:ngpus=1:mem=46gb
+#PBS -l walltime=8:00:00
+#PBS -M c.mcmenamie@unsw.edu.au
+#PBS -m ae
+#PBS -j oe
+
+# NOTE: no `-I` option, as this will fail when invoking `qsub` without 
+# a TTY attached. 
+
+sleep infinity
