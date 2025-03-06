@@ -15,7 +15,9 @@ dependencies = [
     "cleo (>=2.1.0,<3.0.0)",
     "tqdm (>=4.67.1,<5.0.0)",
     "rich (>=13.9.4,<14.0.0)",
-    "loguru (>=0.7.3,<0.8.0)"
+    "loguru (>=0.7.3,<0.8.0)",
+    "platformdirs (>=4.3.6,<5.0.0)",
+    "black[jupyter] (>=25.1.0,<26.0.0)"
 ]
 
 [tool.poetry]

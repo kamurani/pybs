@@ -7,15 +7,13 @@ from functools import partial
 from typing import Tuple
 from pathlib import Path
 from loguru import logger as log
+
 log = log.opt(colors=True)
 
 from sshconf import read_ssh_config
 from os.path import expanduser
 
 from pybs import SSH_CONFIG_PATH
-
-
-
 
 
 class PBSServer:
@@ -56,13 +54,15 @@ class PBSServer:
         ), f"Specified hostname '{remotehost}' not found in ssh config"
         username = c.host(remotehost)["user"]
         self.username = username
-        
-        # log info using pretty colours for username 
 
-        log.info(f"Found hostname <green>{remotehost}</green> in ssh config. Username: <green>{username}</green>")
-            
+        # log info using pretty colours for username
+
+        log.info(
+            f"Found hostname <green>{remotehost}</green> in ssh config. Username: <green>{username}</green>"
+        )
 
     """Decorator for stdout and stderr collection."""
+
     def print_stdout(func):
         def decorated(self, *args, **kwargs):
             stdout, stderr = None, None
@@ -125,7 +125,7 @@ class PBSServer:
         username: str = "$USER",
     ):
         """Get information about a job.
-        
+
         By default, filter by username if job_id is not provided.
         """
         if job_id is not None:
@@ -135,6 +135,7 @@ class PBSServer:
 
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
+
     @print_stdout
     def qstat(
         self,
@@ -252,11 +253,8 @@ class PBSServer:
         cmd = f"qdel {job_id}"
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
-    
+
     def ls(self, path: str = ""):
         cmd = f"ls {path}"
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
-
-
-    

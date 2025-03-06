@@ -56,6 +56,22 @@ Restart your shell to register your changes.  You can check with `which code`.
 _PYBS_COMPLETE=zsh_source pybs > ~/.zsh/pybs-complete.zsh
 ```
 > NOTE: you may have to add `source ` to your `~/.zshrc` if this does not work.  
+
+
+#### Oh My Zsh 
+
+```zsh
+mkdir $ZSH_CUSTOM/plugins/pybs
+pybs completions zsh > $ZSH_CUSTOM/plugins/pybs/_pybs
+```
+You must then add `pybs` to your plugins array in `~/.zshrc`:
+
+```zsh
+plugins(
+	pybs
+	...
+)
+```
 #### Bash 
 ```bash
 _PYBS_COMPLETE=bash_source pybs > ~/.pybs-complete.bash

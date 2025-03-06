@@ -1,5 +1,6 @@
 """Command line interface for PyBS."""
 
+import os
 import sys
 from typing import Literal
 import click as ck
@@ -8,7 +9,7 @@ import subprocess
 from pathlib import Path
 from loguru import logger as log
 
-#log.add(sys.stderr, level="INFO")
+# log.add(sys.stderr, level="INFO")
 from pybs.server import PBSServer
 
 from typing import (
@@ -35,8 +36,8 @@ from typing import (
 
 POLL_INTERVAL = 0.5
 
-# DONE: 
-# - add tab autocompletion scripts 
+# DONE:
+# - add tab autocompletion scripts
 # - add hostname tab completion (use ~/.ssh/config)
 # TODO:
 # - add support for local job scripts
@@ -53,20 +54,23 @@ POLL_INTERVAL = 0.5
 # if a method with that name exists.
 # - refactoring of PBSServer class to use `ssh_command` decorator
 
-# Future TODO: 
-# - add db for currently running jobs, able to login to 
-# any server and see resources, walltime etc. 
-# - add "autorefresh" or "keepalive" option to remember when the walltime will 
+# Future TODO:
+# - add db for currently running jobs, able to login to
+# any server and see resources, walltime etc.
+# - add "autorefresh" or "keepalive" option to remember when the walltime will
 # expire, and request another GPU node that overlaps so we can keep the session logged
-# in on the same node. 
+# in on the same node.
 
-    
-from pybs.console.completion import complete_remote_path, complete_hostname
+
+from pybs.console.tabcomplete import complete_remote_path, complete_hostname
+
 
 @ck.command()
 @ck.argument(
-    "hostname", type=str, shell_complete=complete_hostname,
-    #help="The hostname of the remote server.",
+    "hostname",
+    type=str,
+    shell_complete=complete_hostname,
+    # help="The hostname of the remote server.",
 )
 @ck.argument(
     "remote_path",
@@ -74,7 +78,7 @@ from pybs.console.completion import complete_remote_path, complete_hostname
         exists=False,
         path_type=Path,
     ),
-    shell_complete=complete_remote_path, 
+    shell_complete=complete_remote_path,
 )
 @ck.argument(
     "job_script",
@@ -82,22 +86,22 @@ from pybs.console.completion import complete_remote_path, complete_hostname
         exists=False,
         path_type=Path,
     ),
-    #help="Path to the job script to run on the remote server.  May be a local or remote path.",
+    # help="Path to the job script to run on the remote server.  May be a local or remote path.",
 )
 @ck.option("--job-script-location", type=ck.Choice(["local", "remote"]), default=None)
-
 @ck.option("--debug/--no-debug", default=False)
 @ck.option("--verbose/--no-verbose", default=False)
 @ck.option("--dryrun/--no-dryrun", default=False)
 @ck.option(
-    "--killswitch/--no-killswitch", default=False,
+    "--killswitch/--no-killswitch",
+    default=False,
     help="Keep the program running until user input, then the job will be killed.",
 )
 def code(
     hostname: str,
     remote_path: Path,
     job_script: Path,
-    # literal 
+    # literal
     job_script_location: Literal["local", "remote"] = None,
     debug: bool = False,
     verbose: bool = True,
@@ -115,19 +119,19 @@ def code(
         log.info(f"Checking if job script {job_script} exists...")
         if job_script.is_file():
             log.info(f"Using local job script: {job_script}")
-            job_script_location = "local" 
+            job_script_location = "local"
         else:
             log.info(f"Job script {job_script} not found. Assuming remote path.")
             job_script_location = "remote"
-    else: 
+    else:
         log.info(f"Using user-provided {job_script_location} job script: {job_script}")
 
     server = PBSServer(hostname, verbose=verbose)
 
     if dryrun:
-        log.debug("Dry run mode enabled. Exiting.") 
+        log.debug("Dry run mode enabled. Exiting.")
         return
-    
+
     if verbose:
         print(f"Submitting job to {hostname} with job script {job_script}...")
     job_id = server.submit_job(job_script)
@@ -167,7 +171,7 @@ def code(
         capture_output=True,
     )
 
-    if killswitch: 
+    if killswitch:
         # Stay open until Ctrl+C
         print("Press Ctrl+C to kill job.")
         user_input = input()
@@ -179,10 +183,12 @@ def code(
 
 @ck.command()
 @ck.argument(
-    "hostname", type=str, shell_complete=complete_hostname,
+    "hostname",
+    type=str,
+    shell_complete=complete_hostname,
 )
 @ck.argument(
-    "job_id", 
+    "job_id",
     required=False,
     type=ck.STRING,
 )
@@ -208,6 +214,7 @@ from contextlib import contextmanager
 from time import time
 from typing import Optional
 
+
 @contextmanager
 def Timer(desc: Optional[str] = None):
     start = time()
@@ -223,7 +230,8 @@ def Timer(desc: Optional[str] = None):
 from rich.progress import Progress, ProgressColumn, Text
 from datetime import timedelta
 
-# TODO: make PR for this? 
+# TODO: make PR for this?
+
 
 class CompactTimeColumn(ProgressColumn):
     """Renders time elapsed."""
@@ -234,9 +242,9 @@ class CompactTimeColumn(ProgressColumn):
         if elapsed is None:
             return Text("-:--:--", style="progress.elapsed")
         delta = timedelta(seconds=max(0, elapsed))
-        # get number of seconds 
+        # get number of seconds
         n_seconds = delta.total_seconds()
-        # customise progress.elapsed to be gray text 
+        # customise progress.elapsed to be gray text
         style = "progress.elapsed"
         style = "grey58"
         return Text(f"({n_seconds:.1f}s)", style=style)
@@ -246,7 +254,7 @@ class CompactTimeColumn(ProgressColumn):
 def cli():
     """Launch a remote shell on a server."""
 
-    import rich 
+    import rich
     import time
     from rich.progress import Progress
     from rich.console import Console
@@ -255,13 +263,13 @@ def cli():
     progress = Progress()
 
     from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
+
     progress = Progress(
         SpinnerColumn(),
-        
-        #*Progress.get_default_columns(),
+        # *Progress.get_default_columns(),
         # show 1dp of seconds (elapsed time)
         TextColumn("[progress.description]{task.description}"),
-        #"{task.fields[extra]}"),
+        # "{task.fields[extra]}"),
         CompactTimeColumn(),
     )
     with progress:
@@ -270,24 +278,24 @@ def cli():
 
         while not progress.finished:
             progress.update(task1, advance=0.5)
-            
+
             time.sleep(3)
 
-    
 
 def nothing():
     from tqdm import tqdm
     import time
-    c = ck.confirm(ck.style('Do you want to continue?', fg='green'))
+
+    c = ck.confirm(ck.style("Do you want to continue?", fg="green"))
 
     start = time.time()
 
-    while True: 
+    while True:
         elapsed = time.time() - start
         sys.stdout.write("\r")
-        sys.stdout.write("Submitting job... ({:2f})".format(elapsed)) 
+        sys.stdout.write("Submitting job... ({:2f})".format(elapsed))
         sys.stdout.flush()
-        #time.sleep(1)
+        # time.sleep(1)
         if elapsed > 3:
             break
     sys.stdout.write("\rComplete!            \n")
@@ -296,10 +304,10 @@ def nothing():
 @ck.command()
 def click():
     """Show a simple example of a progress bar."""
-    ck.secho('ATTENTION', blink=True, bold=True)
-    # ck input 
-     
-    c = ck.confirm(ck.style('Do you want to continue?', fg='green'))
+    ck.secho("ATTENTION", blink=True, bold=True)
+    # ck input
+
+    c = ck.confirm(ck.style("Do you want to continue?", fg="green"))
 
     if c == "^C":
         ck.secho("User cancelled.")
@@ -313,16 +321,48 @@ def click():
     ck.pause("Press any key to continue...")
     ck.echo("Continuing...")
 
+
+@ck.command()
+@ck.argument(
+    "shell", required=False,
+    type=ck.Choice(["bash", "zsh", "fish", "auto"]),
+    default="auto", 
+)
+def completions(
+    shell: str,
+):
+    """Generate shell completion scripts for your shell. 
+    If no shell is specified, it will default to $SHELL."""
+
+    script_name = f"{ck.get_current_context().parent.info_name}"
+    if shell is None or shell == "auto":
+        log.info("No shell specified, defaulting to $SHELL.")
+        shell = os.environ.get("SHELL")
+        log.info(f"Detected shell: {shell}") 
+        shell = shell.split("/")[-1]
+        log.info(f"Extracted shell name: {shell}")  
+    else:
+        log.info(f"Using user-provided shell: {shell}")
+    if shell is None:
+        log.error("No shell detected. Exiting.")
+
+    if shell not in ["bash", "zsh", "fish"]:
+        log.error(f"Unsupported shell: {shell}. Exiting.")
+        return
+    # Use click to generate the completion script
+    script = os.popen(f"_PYBS_COMPLETE={shell}_source {script_name}").read()
+    ck.echo(script)
+
 @ck.group()
 def entry_point():
     pass
 
+
 entry_point.add_command(code)
 entry_point.add_command(stat)
 entry_point.add_command(cli)
+entry_point.add_command(completions)
 
 
-
-
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    entry_point()
