@@ -223,6 +223,8 @@ def Timer(desc: Optional[str] = None):
 from rich.progress import Progress, ProgressColumn, Text
 from datetime import timedelta
 
+# TODO: make PR for this? 
+
 class CompactTimeColumn(ProgressColumn):
     """Renders time elapsed."""
 
@@ -232,7 +234,12 @@ class CompactTimeColumn(ProgressColumn):
         if elapsed is None:
             return Text("-:--:--", style="progress.elapsed")
         delta = timedelta(seconds=max(0, elapsed))
-        return Text("str(delta)", style="progress.elapsed")
+        # get number of seconds 
+        n_seconds = delta.total_seconds()
+        # customise progress.elapsed to be gray text 
+        style = "progress.elapsed"
+        style = "grey58"
+        return Text(f"({n_seconds:.1f}s)", style=style)
 
 
 @ck.command()
