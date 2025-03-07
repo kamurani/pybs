@@ -12,9 +12,28 @@ from pathlib import Path
 from loguru import logger as log
 from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
 from rich.console import Console
+from rich.logging import RichHandler
+import rich.style
+from rich.live import Live
+from rich.theme import Theme
+custom_theme = Theme({
+    "progress.description": "yellow bold", 
+})
+console = Console(theme=custom_theme)
 
-console = Console()
-log.remove()
+JOB_STATUS_DICT = {
+    "C": "Completed",
+    "E": "Exiting",
+    "H": "Held",
+    "Q": "Queued",
+    "R": "Running",
+    "T": "Moving", 
+    "W": "Waiting",
+    "S": "Suspended",
+    "B": "Batch", 
+}
+
+
 def _log_formatter(
     record: dict, 
     icon: bool = False, 
@@ -38,39 +57,28 @@ def _log_formatter(
     return (
         '[not bold green]{time:YYYY/MM/DD HH:mm:ss}[/not bold green] |'
         + f'{icon}  - [{lvl_color}]{{message}}[/{lvl_color}]'
+        # Right-align code location:
+        + ' [dim]{name}:{function}:{line}[/dim]'
     )
-log.add(
-    console.print,
-    level='TRACE',
-    format=_log_formatter,
-    colorize=True,
-)
 
+# Check that theme is set properly: 
+console.print(f"[progress.description]Logging level: {"TRACE"}") #style="bold blue")
+
+log_format = "{message}"
+handler = RichHandler(
+    show_level=True,
+    #console=console, # if this is enabled, it will print the `progress` instances twice
+)
+level = "TRACE"
+#level = "WARNING"
+log.remove()
+log.add(
+    handler, 
+    format=log_format, 
+    level=level, 
+)
 from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_remote_path, complete_hostname
-
-
-from typing import (
-    Any,
-    BinaryIO,
-    Callable,
-    ContextManager,
-    Deque,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    NamedTuple,
-    NewType,
-    Optional,
-    Sequence,
-    TextIO,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
-
 
 POLL_INTERVAL = 0.5
 
@@ -78,11 +86,11 @@ POLL_INTERVAL = 0.5
 # - add tab autocompletion scripts
 # - add hostname tab completion (use ~/.ssh/config)
 # - fix logging for qsub wait
+# - add TUI timer for job submission
 # TODO:
 # - add support for local job scripts
 # - add intelligent remote server expansion of paths example $SCRATCH
 
-# - add TUI timer for job submission
 # - add help to ck args
 # - add tab complete for remote paths similar to `scp```
 # - add auto install of ssh config required hostname alias
@@ -154,16 +162,22 @@ class CompactTimeColumn(ProgressColumn):
     default=True,
     help="Keep the program running until user input, then the job will be killed.",
 )
+@ck.option(
+    "--skip-check/--no-skip-check", 
+    default=False, 
+    help="If enabled, skips checking remote file existence and GPU usage check."
+    "This may be useful for launching more quickly."
+)
 def code(
     hostname: str,
     remote_path: Path,
     job_script: Path,
-    # literal
     job_script_location: Literal["local", "remote"] = None,
     debug: bool = False,
     verbose: bool = True,
     dryrun: bool = False,
     killswitch: bool = False,
+    skip_check: bool = False, 
 ):
     """Launch a job on a remote server and open VScode.
 
@@ -184,25 +198,41 @@ def code(
         log.info(f"Using user-provided {job_script_location} job script: {job_script}")
 
     progress = Progress(
-        SpinnerColumn(),
-        # show 1dp of seconds (elapsed time)
-        TextColumn("[progress.description]{task.description}"),
+        SpinnerColumn(
+            spinner_name="line",
+            #spinner_name="simpleDots",
+            #spinner_name="simpleDotsScrolling",
+            style="blue",
+        ),
+        TextColumn(
+            "[progress.description]{task.description}", style="blue"), 
+        # SpinnerColumn(
+        #     spinner_name="simpleDotsScrolling",
+        #     style="blue",
+        # ),
         CompactTimeColumn(),
     )
-    import time 
-    
-        
-        # while not progress.finished:
-        #     progress.update(task1, advance=0.5)
-        #     time.sleep(0.5)
 
+    monitor_job_status = Progress(
+        SpinnerColumn(spinner_name="dots", style="white"),
+        TextColumn("""
+        Status:     {task.fields[job_status]}
+        Node:       {task.fields[node]}
+        """, style="blink bold black on orange"),
+                
+        #TextColumn("[progress.description]{task.fields[job_status]}"),
+        #TextColumn("[progress.description]Node: {task.fields[node]}"), 
+        #CompactTimeColumn(), # show 1dp of seconds (elapsed time)
+    )
+
+    import time 
 
     # If remote, check if the file exists on the remote server
     server = PBSServer(hostname, verbose=verbose)
     if job_script_location == "remote":
         with progress:
             task1 = progress.add_task(
-                f"[blue]Checking job script on [bold][white]{hostname}[/white][/bold] exists... ",
+                f"Checking job script on [bold][white]{hostname}[/white][/bold] exists... ",
                 total=1, 
             )
             if not server.check_file_exists(job_script):
@@ -211,50 +241,139 @@ def code(
             else: 
                 log.info(f"Job script {job_script} found on {hostname}.")
                 # mark progress as complete 
+                progress.update(task1, completed=True) 
+    
+    progress.remove_task(task1) # prevent showing task twice in CLI output when we re-use `progress` object 
+
+    # Check directory 
+    if skip_check:
+        log.info("Skipping remote path existence check.")
+    else:
+        with progress:
+            task1 = progress.add_task(
+                f"Checking that workspace directory on [bold][white]{hostname}[/white][/bold] exists... ",
+                total=1, 
+            )
+            if not server.check_dir_exists(remote_path):
+                log.error(f"Remote path {remote_path} not found on {hostname}. Exiting.")
+                return
+            else: 
+                log.info(f"Remote path {remote_path} found on {hostname}.")
+                # mark progress as complete 
                 progress.update(task1, completed=True)
+        
+        progress.remove_task(task1) # prevent showing task twice in CLI output when we re-use `progress` object
+
 
     if dryrun:
         log.debug("Dry run mode enabled. Won't submit real job.")
 
     # Submit job to remote server
     with progress:
-        task1 = progress.add_task(f"[blue]Submitting job to [bold][white]{hostname}[/white][/bold]... ")
+        task2 = progress.add_task(f"Submitting job to [bold][white]{hostname}[/white][/bold]... ")
         if dryrun: time.sleep(1)
-        else: job_id = server.submit_job(job_script)
+        else: 
+            job_id = server.submit_job(job_script) 
 
-    ck.secho(f"Job submitted with ID: {job_id}", fg="green")
-   
-    info = server.job_info(job_id)
-    if verbose:
-        print(f"Status: {info['status']}")
-    from time import sleep
+    progress.remove_task(task2)
+    ck.secho(f"Job submitted with ID: {job_id}", fg="green") 
+    log.success(f"Job submitted with ID: {job_id}")
+    
 
-    while server.get_status(job_id) != "R":
+    try: # Now listen for program exit so we can kill the job if needed
+        with progress: 
+            task3 = progress.add_task(f"Retrieving job information... ")
+            info = server.job_info(job_id)
+            progress.update(task3, completed=True)
+        progress.remove_task(task3)
+        #log.info(f"Status: {info['status']}")
+        with monitor_job_status:
+            # Waiting for job to start...
+            task4 = monitor_job_status.add_task(
+                f"Waiting for job to start...", job_status="--", node="--", total=1)
+            while not monitor_job_status.finished:
+                sleep(POLL_INTERVAL)
+                status = server.get_status(job_id)
+                node = server.get_node(job_id)
+                node_display = node if node is not None else "--"
+                status_display = f"[r][orange]{JOB_STATUS_DICT.get(status, '-').upper()}[/orange][/r]"
+
+                monitor_job_status.update(task4, job_status=status_display, node=node_display)
+                if status == "R": 
+                    monitor_job_status.update(task4, completed=True)
+                    log.info("Job is running.")
+                    
+        monitor_job_status.remove_task(task4)
+        info = server.job_info(job_id)
+        node = info["node"]
+        log.debug(info)
+        
+        if skip_check:
+            log.info("Skipping GPU check.")
+        else:
+            with progress:
+                try:
+                    task5 = progress.add_task(f"Checking GPU status (Ctrl+C to skip)... ")
+                    out, err = server.check_gpu(node=node)
+                    ck.secho(out, fg="green")
+                    ck.secho(err, fg="red")
+                    progress.update(task5, completed=True)
+                except KeyboardInterrupt:
+                    log.info(f"Skipping GPU check...")
+
+
+            progress.remove_task(task5)
+
+        # Launch VS code
+        target_name = f"{hostname}-{node}"
         if verbose:
-            print(".", end="")
-        sleep(POLL_INTERVAL)
-    if verbose:
-        print("Job is running.")
-    info = server.job_info(job_id)
-    node = info["node"]
-    log.debug(info)
-    if verbose:
-        print(f"Checking GPU status:")
-        out, err = server.check_gpu(node=node)
-        print(out)
-        print(err)
+            print(f"Launching VScode on {target_name}...")
+        cmd_list = ["code", "--remote", f"ssh-remote+{target_name}", remote_path]
+        if debug:
+            print(cmd_list)
+        captured = subprocess.run(
+            cmd_list,
+            capture_output=True,
+        )
+    
 
-    # Launch VS code
-    target_name = f"{hostname}-{node}"
-    if verbose:
-        print(f"Launching VScode on {target_name}...")
-    cmd_list = ["code", "--remote", f"ssh-remote+{target_name}", remote_path]
-    if debug:
-        print(cmd_list)
-    captured = subprocess.run(
-        cmd_list,
-        capture_output=True,
-    )
+
+
+    except KeyboardInterrupt:
+        
+        from rich.console import Group 
+
+        # Clear all tasks from progress 
+        ids = progress.task_ids
+        for task_id in ids:
+            progress.remove_task(task_id)
+
+        progress_group = Group(
+            progress, 
+            monitor_job_status,
+        )
+        with Live(progress_group, refresh_per_second=10):
+            task6 = progress.add_task(f"Killing job {job_id}... ")
+            task7 = monitor_job_status.add_task(f"Job status: ", job_status="--", node="--", total=1)
+            server.kill_job(job_id)
+            while not progress.finished:
+                sleep(POLL_INTERVAL)
+                status = server.get_status(job_id)
+                status_display = f"[r][orange]{JOB_STATUS_DICT.get(status, '-').upper()}[/orange][/r]"
+                progress.update(task7, job_status=status_display)
+                if status == "C":
+                    progress.update(task7, completed=True)
+                    log.info("Job killed.")
+            progress.update(task6, completed=True)
+            log.info("Job killed.")
+        progress.remove_task(task6)
+       
+        try: 
+            sys.exit(130)
+        except SystemExit:
+            os._exit(130) 
+    
+    
 
     if killswitch:
         # Stay open until Ctrl+C
@@ -277,94 +396,3 @@ def code(
             # TODO: 
             # actually display the status of the job using `stat` while it exits. 
             log.info("Job killed.") 
-
-
-
-"""Context manager for displaying a timer on the CLI. """
-from contextlib import contextmanager
-from time import time
-from typing import Optional
-
-
-@contextmanager
-def Timer(desc: Optional[str] = None):
-    start = time()
-    yield
-    end = time()
-    elapsed = end - start
-    if desc:
-        ck.echo(f"{desc} took {elapsed:.2f} seconds.")
-    else:
-        ck.echo(f"Elapsed time: {elapsed:.2f} seconds.")
-
-
-
-
-
-@ck.command()
-def cli():
-    """Launch a remote shell on a server."""
-
-    
-
-    console = Console()
-    progress = Progress()
-
-
-    progress = Progress(
-        SpinnerColumn(),
-        # *Progress.get_default_columns(),
-        # show 1dp of seconds (elapsed time)
-        TextColumn("[progress.description]{task.description}"),
-        # "{task.fields[extra]}"),
-        CompactTimeColumn(),
-    )
-    with progress:
-
-        task1 = progress.add_task("[blue]Submitting job... ")
-
-        while not progress.finished:
-            progress.update(task1, advance=0.5)
-
-            time.sleep(3)
-
-
-def nothing():
-    from tqdm import tqdm
-    import time
-
-    c = ck.confirm(ck.style("Do you want to continue?", fg="green"))
-
-    start = time.time()
-
-    while True:
-        elapsed = time.time() - start
-        sys.stdout.write("\r")
-        sys.stdout.write("Submitting job... ({:2f})".format(elapsed))
-        sys.stdout.flush()
-        # time.sleep(1)
-        if elapsed > 3:
-            break
-    sys.stdout.write("\rComplete!            \n")
-
-
-@ck.command()
-def click():
-    """Show a simple example of a progress bar."""
-    ck.secho("ATTENTION", blink=True, bold=True)
-    # ck input
-
-    c = ck.confirm(ck.style("Press Ct", fg="green"))
-
-    if c == "^C":
-        ck.secho("User cancelled.")
-        return
-    elif c:
-        ck.secho("Continuing...")
-    else:
-        ck.secho("Exiting.")
-        return
-
-    ck.pause("Press any key to continue...")
-    ck.echo("Continuing...")
-

@@ -81,7 +81,15 @@ class PBSServer:
     def get_status(self, job_id: str):
         """Get the status of the server."""
         info = self.job_info(job_id)
-        return info["status"]
+        return info["status"] 
+    
+    def get_node(self, job_id: str):
+        """Get the node of the server."""
+        info = self.job_info(job_id)
+        status = info["status"]
+        if status == "R":
+            return info["node"]
+        return None
 
     def ssh_call(self, cmd): 
         cmd = ["ssh", self.remotehost, cmd]
@@ -113,9 +121,13 @@ class PBSServer:
         self,
         node: str = None,
         job_id: str = None,
+        short: bool = True,
     ) -> Tuple[str, str]:
         """Check the GPU usage on a node."""
         cmd = "nvidia-smi"
+        if short:
+            cmd += " -L;"
+            cmd += "nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv"
         if node is None:
             if job_id is None:
                 raise ValueError("Either node or job_id must be provided.")
@@ -143,8 +155,12 @@ class PBSServer:
     ) -> bool:
         """Check if a directory exists on the remote server."""
         cmd = f"test -d {remote_path}"
-        stdout, stderr = self.ssh_execute(cmd)
-        return stdout == 0
+        status = self.ssh_call(cmd)
+        if status == 0:
+            return True
+        if status == 1:
+            return False
+        raise Exception(f"SSH: Error checking directory existence: {status}")
 
     @property 
     def hostname(self):
@@ -271,7 +287,6 @@ class PBSServer:
         ), f"Parse error: Fields and header mismatch: {len(fields)} vs {len(header)}"
 
         node_line = node_line.strip()
-        print("Node line:", node_line)
         if "/" not in node_line:
             node_name = node_line.strip()
             resources = None
