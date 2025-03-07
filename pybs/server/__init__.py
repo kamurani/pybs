@@ -83,6 +83,11 @@ class PBSServer:
         info = self.job_info(job_id)
         return info["status"]
 
+    def ssh_call(self, cmd): 
+        cmd = ["ssh", self.remotehost, cmd]
+        status = subprocess.call(cmd)
+        return status   
+
     @print_stdout
     def ssh_execute(self, cmd):
         cmd = ["ssh", self.remotehost, cmd]
@@ -118,7 +123,36 @@ class PBSServer:
             node = info_dict["node"]
         stdout, stderr = self.ssh_jump_execute(cmd, target_node=node)
         return stdout, stderr
+    
+    def check_file_exists(
+        self, 
+        remote_path: Path,
+    ) -> bool:
+        """Check if a file exists on the remote server."""
+        cmd = f"test -f {remote_path}"
+        status = self.ssh_call(cmd)
+        if status == 0:
+            return True
+        if status == 1:
+            return False
+        raise Exception(f"SSH: Error checking file existence: {status}")
 
+    def check_dir_exists(
+        self,
+        remote_path: Path,
+    ) -> bool:
+        """Check if a directory exists on the remote server."""
+        cmd = f"test -d {remote_path}"
+        stdout, stderr = self.ssh_execute(cmd)
+        return stdout == 0
+
+    @property 
+    def hostname(self):
+        """Get the hostname of the remote server."""
+        cmd = "hostname"
+        stdout, stderr = self.ssh_execute(cmd)
+        return stdout, stderr
+    
     def stat(
         self,
         job_id: str = None,
@@ -128,6 +162,9 @@ class PBSServer:
 
         By default, filter by username if job_id is not provided.
         """
+        # TODO: 
+        # `stat --interactive` option to see 'watch qstat' like output
+        # can interactively kill jobs or connect to nodes. 
         if job_id is not None:
             cmd = f"qstat {job_id}"
         else:
