@@ -12,14 +12,39 @@ from pathlib import Path
 from loguru import logger as log
 from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
 from rich.console import Console
-from rich.logging import RichHandler
-# richhandler 
-
 
 console = Console()
-handler = RichHandler()
 log.remove()
-log.add(handler, colorize=True)
+def _log_formatter(
+    record: dict, 
+    icon: bool = False, 
+) -> str:
+    """Log message formatter"""
+    color_map = {
+        'TRACE': 'dim blue',
+        'DEBUG': 'cyan',
+        'INFO': 'bold',
+        'SUCCESS': 'bold green',
+        'WARNING': 'yellow',
+        'ERROR': 'bold red',
+        'CRITICAL': 'bold white on red'
+    }
+    lvl_color = color_map.get(record['level'].name, 'cyan')
+
+    if icon:
+        icon = "{level.icon}"
+    else:
+        icon = ""
+    return (
+        '[not bold green]{time:YYYY/MM/DD HH:mm:ss}[/not bold green] |'
+        + f'{icon}  - [{lvl_color}]{{message}}[/{lvl_color}]'
+    )
+log.add(
+    console.print,
+    level='TRACE',
+    format=_log_formatter,
+    colorize=True,
+)
 
 from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_remote_path, complete_hostname
