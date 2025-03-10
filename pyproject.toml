@@ -1,6 +1,5 @@
 [project]
 name = "pythonpbs"
-version = "0.1.2"
 description = "Python-based PBS job submission"
 authors = [
     {name = "Kâmuran İmran",email = "c.mcmenamie@unsw.edu.au"}
@@ -24,10 +23,10 @@ dependencies = [
 packages = [
     {include = "pybs", from = "."}
 ]
+version = "0.1.3"
 
 [project.scripts]
 pybs = "pybs.console.console:entry_point"
-
 
 
 [tool.poetry.group.dev.dependencies]
