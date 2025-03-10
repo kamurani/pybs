@@ -6,6 +6,8 @@ import click as ck
 from loguru import logger as log
 from pybs import NAME
 
+
+
 @ck.command()
 @ck.argument(
     "shell", required=False,
@@ -17,6 +19,15 @@ def completions(
 ):
     """Generate shell completion scripts for your shell. 
     If no shell is specified, it will default to $SHELL."""
+
+    # Change loggers to use stderr (ONLY for this command)
+    # This is until we change `rich.RichHandler` to use stderr
+    # on specific logs. 
+    # NOTE: if we use console=console(stderr=True), it messes up 
+    # the progress bar graphics for some reason. 
+    log.remove()
+    log.add(sys.stderr)
+
 
     script_name = f"{ck.get_current_context().parent.info_name}"
     if shell is None or shell == "auto":
