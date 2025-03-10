@@ -335,9 +335,12 @@ def code(
                     progress.remove_task(task4)   # complete 'waiting'
                 if status == "R" and task6 in progress.task_ids: 
                     progress.remove_task(task6)   # complete 'waiting'
-                    if node is None: task7 = progress.add_task(f"Waiting for node to be assigned... ", total=1)
+                    if node is None: 
+                        task7 = progress.add_task(f"Waiting for node to be assigned... ", total=1)
+                        log.info("Job started.")
+                    else: 
+                        log.info("Node assigned.")
                     monitor_job_status.update(task5, completed=True)
-                    log.info("Job is running.")
 
                 if node is not None and task7 in progress.task_ids: 
                     # Note: We only show 'waiting for node' progress bar if node is assigned AFTER job starts. 
@@ -363,14 +366,18 @@ def code(
                     # newline 
                     # console print 
                     log.info(out)
-                    log.error(err)
-                    
+                    if err: log.error(err)
+
                     progress.update(task5, completed=True)
+                    progress.remove_task(task5)
                 except KeyboardInterrupt:
                     log.info(f"Skipping GPU check...")
 
+            #progress.remove_task(task5)
 
-            progress.remove_task(task5)
+            # TODO: figure out why sometimes our progress bars 'hide' and are transient (even though we are
+            # not setting transient=True), and other times they are left behind on the screen.
+            # NOTE: I think it's because we are removing a task from WITHIN the `with progress` block. 
 
         # Launch VS code
         target_name = f"{hostname}-{node}"
