@@ -19,7 +19,10 @@ from rich.theme import Theme
 custom_theme = Theme({
     "progress.description": "yellow bold", 
 })
-console = Console(theme=custom_theme)
+console = Console(
+    theme=custom_theme,
+    stderr=True,
+)
 
 JOB_STATUS_DICT = {
     "C": "Completed",
@@ -336,9 +339,6 @@ def code(
             capture_output=True,
         )
     
-
-
-
     except KeyboardInterrupt:
         
         from rich.console import Group 
