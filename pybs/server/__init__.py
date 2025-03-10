@@ -57,7 +57,7 @@ class PBSServer:
 
         # log info using pretty colours for username
 
-        log.info(
+        log.opt(colors=True).info(
             f"Found hostname <green>{remotehost}</green> in ssh config. Username: <green>{username}</green>"
         )
 

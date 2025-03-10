@@ -2,16 +2,15 @@
 
 import os
 import sys
-from typing import Literal
 import click as ck
 import subprocess
-from time import sleep
-import rich
 
+from time import sleep
+from typing import Literal
 from pathlib import Path
 from loguru import logger as log
 from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
-from rich.console import Console
+from rich.console import Console, Group 
 from rich.logging import RichHandler
 import rich.style
 from rich.live import Live
@@ -19,10 +18,7 @@ from rich.theme import Theme
 custom_theme = Theme({
     "progress.description": "yellow bold", 
 })
-console = Console(
-    theme=custom_theme,
-    stderr=True,
-)
+
 
 JOB_STATUS_DICT = {
     "C": "Completed",
@@ -64,8 +60,12 @@ def _log_formatter(
         + ' [dim]{name}:{function}:{line}[/dim]'
     )
 
+console = Console(
+    theme=custom_theme,
+    #stderr=True,
+)
 # Check that theme is set properly: 
-console.print(f"[progress.description]Logging level: {"TRACE"}") #style="bold blue")
+#console.print(f"[progress.description]Logging level: {"TRACE"}") #style="bold blue")
 
 log_format = "{message}"
 handler = RichHandler(
@@ -77,13 +77,20 @@ level = "TRACE"
 log.remove()
 log.add(
     handler, 
+    #lambda m: console.print(m, end=""),
     format=log_format, 
     level=level, 
 )
+
+
+
+
+
 from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_remote_path, complete_hostname
 
 POLL_INTERVAL = 0.5
+
 
 # DONE:
 # - add tab autocompletion scripts
@@ -279,38 +286,73 @@ def code(
             job_id = server.submit_job(job_script) 
 
     progress.remove_task(task2)
-    ck.secho(f"Job submitted with ID: {job_id}", fg="green") 
+    #ck.secho(f"Job submitted with ID: {job_id}", fg="green") 
     log.success(f"Job submitted with ID: {job_id}")
     
 
     try: # Now listen for program exit so we can kill the job if needed
-        with progress: 
-            task3 = progress.add_task(f"Retrieving job information... ")
+
+
+        # Refactored with `Live`
+        
+
+        # Clear all tasks from progress 
+        ids = progress.task_ids
+        for task_id in ids:
+            progress.remove_task(task_id)
+
+        progress_group = Group(
+            progress, 
+            monitor_job_status,
+        )
+        with Live(progress_group, refresh_per_second=10):
+
+            task3 = progress.add_task(f"Retrieving job information... ", total=1)
             info = server.job_info(job_id)
             progress.update(task3, completed=True)
-        progress.remove_task(task3)
-        #log.info(f"Status: {info['status']}")
-        with monitor_job_status:
-            # Waiting for job to start...
-            task4 = monitor_job_status.add_task(
-                f"Waiting for job to start...", job_status="--", node="--", total=1)
+            progress.remove_task(task3) 
+            # 'Retrieving' is completed, but we are still 'waiting'
+            task4 = progress.add_task(f"Waiting for job to queue... ", total=1)
+
+            task5 = monitor_job_status.add_task(
+                f"", job_status="--", node="--", total=1) # total=1 so we can update and remove
+            
+            task7 = None
             while not monitor_job_status.finished:
                 sleep(POLL_INTERVAL)
+
+                # Update job status display
                 status = server.get_status(job_id)
                 node = server.get_node(job_id)
                 node_display = node if node is not None else "--"
-                status_display = f"[r][orange]{JOB_STATUS_DICT.get(status, '-').upper()}[/orange][/r]"
+                status_display = f"[r][yellow]{JOB_STATUS_DICT.get(status, '-').upper()}[/yellow][/r]"
+                monitor_job_status.update(task5, job_status=status_display, node=node_display)
 
-                monitor_job_status.update(task4, job_status=status_display, node=node_display)
-                if status == "R": 
-                    monitor_job_status.update(task4, completed=True)
+                # Update progress display 
+                if status == "Q" and task4 in progress.task_ids:
+                    task6 = progress.add_task(f"Waiting for job to start... ", total=1)
+                    progress.update(task4, completed=True)
+                    progress.remove_task(task4)   # complete 'waiting'
+                if status == "R" and task6 in progress.task_ids: 
+                    progress.remove_task(task6)   # complete 'waiting'
+                    if node is None: task7 = progress.add_task(f"Waiting for node to be assigned... ", total=1)
+                    monitor_job_status.update(task5, completed=True)
                     log.info("Job is running.")
-                    
-        monitor_job_status.remove_task(task4)
-        info = server.job_info(job_id)
-        node = info["node"]
-        log.debug(info)
-        
+
+                if node is not None and task7 in progress.task_ids: 
+                    # Note: We only show 'waiting for node' progress bar if node is assigned AFTER job starts. 
+                    # usually, the node is assigned during 'QUEUE'.
+                    progress.remove_task(task7)
+                    log.info(f"Node {node} assigned.")
+                    break
+                
+
+            #monitor_job_status.remove_task(task6)   # complete 'waiting'
+            #monitor_job_status.remove_task(task5)   # complete 'job status'
+            info = server.job_info(job_id)
+            node = info["node"]
+            log.debug(info)
+
         if skip_check:
             log.info("Skipping GPU check.")
         else:
@@ -318,6 +360,8 @@ def code(
                 try:
                     task5 = progress.add_task(f"Checking GPU status (Ctrl+C to skip)... ")
                     out, err = server.check_gpu(node=node)
+                    # newline 
+                    ck.secho("", fg="green")
                     ck.secho(out, fg="green")
                     ck.secho(err, fg="red")
                     progress.update(task5, completed=True)
@@ -341,8 +385,6 @@ def code(
     
     except KeyboardInterrupt:
         
-        from rich.console import Group 
-
         # Clear all tasks from progress 
         ids = progress.task_ids
         for task_id in ids:
@@ -372,7 +414,6 @@ def code(
             sys.exit(130)
         except SystemExit:
             os._exit(130) 
-    
     
 
     if killswitch:

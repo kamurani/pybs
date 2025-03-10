@@ -4,9 +4,6 @@ import sys
 import click as ck
 
 from loguru import logger as log
-log.remove() # log to stderr, to prevent messing up the completion script stdout
-log.add(sys.stderr, level="INFO")
-
 from pybs import NAME
 
 @ck.command()
