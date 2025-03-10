@@ -81,8 +81,8 @@ class PBSServer:
     def get_status(self, job_id: str):
         """Get the status of the server."""
         info = self.job_info(job_id)
-        return info["status"] 
-    
+        return info["status"]
+
     def get_node(self, job_id: str):
         """Get the node of the server."""
         info = self.job_info(job_id)
@@ -91,10 +91,10 @@ class PBSServer:
             return info["node"]
         return None
 
-    def ssh_call(self, cmd): 
+    def ssh_call(self, cmd):
         cmd = ["ssh", self.remotehost, cmd]
         status = subprocess.call(cmd)
-        return status   
+        return status
 
     @print_stdout
     def ssh_execute(self, cmd):
@@ -127,7 +127,9 @@ class PBSServer:
         cmd = "nvidia-smi"
         if short:
             cmd += " -L;"
-            cmd += "nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv"
+            cmd += (
+                "nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv"
+            )
         if node is None:
             if job_id is None:
                 raise ValueError("Either node or job_id must be provided.")
@@ -135,9 +137,16 @@ class PBSServer:
             node = info_dict["node"]
         stdout, stderr = self.ssh_jump_execute(cmd, target_node=node)
         return stdout, stderr
+
+    def expand_remote_path(self, path: Path) -> Path:
+        """Expand a path on the remote server."""
+        cmd = f"echo {path}"
+        stdout, stderr = self.ssh_execute(cmd)
+        return Path(stdout.strip())
     
+
     def check_file_exists(
-        self, 
+        self,
         remote_path: Path,
     ) -> bool:
         """Check if a file exists on the remote server."""
@@ -162,13 +171,13 @@ class PBSServer:
             return False
         raise Exception(f"SSH: Error checking directory existence: {status}")
 
-    @property 
+    @property
     def hostname(self):
         """Get the hostname of the remote server."""
         cmd = "hostname"
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
-    
+
     def stat(
         self,
         job_id: str = None,
@@ -178,9 +187,9 @@ class PBSServer:
 
         By default, filter by username if job_id is not provided.
         """
-        # TODO: 
+        # TODO:
         # `stat --interactive` option to see 'watch qstat' like output
-        # can interactively kill jobs or connect to nodes. 
+        # can interactively kill jobs or connect to nodes.
         if job_id is not None:
             cmd = f"qstat {job_id}"
         else:
@@ -251,10 +260,34 @@ class PBSServer:
         cmd = f"qsub {job_script}"
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
+    
+    def qsub_stdin(self, job_script: str):
+        """Submit a job to the queue using stdin."""
+        # Use single quote to escape everything in the heredoc
+        cmd = "qsub << 'EOF'\n" + job_script + "\nEOF"
+        stdout, stderr = self.ssh_execute(cmd)
+        log.info(f"Submitted `STDIN` job with script:\n{job_script}")
+        return stdout, stderr
 
-    def submit_job(self, job_script: Path):
+    def submit_job(
+        self, 
+        job_script: Path, 
+        location: str = "remote", 
+    ):
         """Submit a job to the queue and return the job ID."""
-        stdout, stderr = self.qsub(job_script)
+        if location == "remote":
+            stdout, stderr = self.qsub(job_script)
+        elif location == "local":
+            # load job_script from local machine
+            with open(job_script, "r") as f:
+                job_script = f.read()
+            stdout, stderr = self.qsub_stdin(job_script)
+            log.debug(stdout)
+            log.debug(stderr)
+
+        else: 
+            raise ValueError(f"Invalid location: {location}")
+        
         job_id, _ = self.parse_job_id(stdout)
         return job_id
 
