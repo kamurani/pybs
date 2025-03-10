@@ -361,9 +361,10 @@ def code(
                     task5 = progress.add_task(f"Checking GPU status (Ctrl+C to skip)... ")
                     out, err = server.check_gpu(node=node)
                     # newline 
-                    ck.secho("", fg="green")
-                    ck.secho(out, fg="green")
-                    ck.secho(err, fg="red")
+                    # console print 
+                    log.info(out)
+                    log.error(err)
+                    
                     progress.update(task5, completed=True)
                 except KeyboardInterrupt:
                     log.info(f"Skipping GPU check...")
