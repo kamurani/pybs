@@ -1,4 +1,7 @@
 from pathlib import Path
+import importlib.metadata
+version = importlib.metadata.version("pythonpbs")
+__version__ = version
 
 PROJECT_ROOT = Path(__file__).parent.parent
 NAME = "PyBS"

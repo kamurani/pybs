@@ -1,8 +1,10 @@
 """PBS commands for remote server."""
+
 import click as ck
 
 from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_hostname
+
 
 @ck.command()
 @ck.argument(
@@ -30,6 +32,7 @@ def stat(
     stdout, stderr = server.stat(job_id)
     ck.echo(stdout)
     ck.echo(stderr)
+
 
 @ck.command()
 @ck.argument(

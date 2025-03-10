@@ -48,3 +48,14 @@ def complete_hostname(ctx, param, incomplete):
     c = read_ssh_config(expanduser(SSH_CONFIG_PATH))
     hostnames = c.hosts()
     return [h for h in hostnames if incomplete in h]
+
+def complete_job_script(ctx, param, incomplete):
+    """Tab completion for JOB_SCRIPT CLI argument."""
+    # TODO: fix this
+    log.debug(f"Completing {param}: {incomplete}")
+    return [
+        str(f) 
+        for f in Path(".").glob(f"{incomplete}*") 
+        if f.is_file() and f.suffix in [".sh", ".pbs"] 
+        or f.is_dir()
+    ]
