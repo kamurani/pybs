@@ -1,16 +1,19 @@
+"""Module for interacting with the PBS server."""
+
 import subprocess
 import os
 
 from functools import partial
 from typing import Tuple
 from pathlib import Path
+from loguru import logger as log
+
+log = log.opt(colors=True)
 
 from sshconf import read_ssh_config
 from os.path import expanduser
 
 from pybs import SSH_CONFIG_PATH
-
-
 
 
 class PBSServer:
@@ -51,10 +54,12 @@ class PBSServer:
         ), f"Specified hostname '{remotehost}' not found in ssh config"
         username = c.host(remotehost)["user"]
         self.username = username
-        if self.verbose:
-            print(
-                f"Found hostname '{remotehost}' in ssh config. Using username '{username}'"
-            )
+
+        # log info using pretty colours for username
+
+        log.opt(colors=True).info(
+            f"Found hostname <green>{remotehost}</green> in ssh config. Username: <green>{username}</green>"
+        )
 
     """Decorator for stdout and stderr collection."""
 
@@ -76,7 +81,20 @@ class PBSServer:
     def get_status(self, job_id: str):
         """Get the status of the server."""
         info = self.job_info(job_id)
-        return info["status"]
+        return info["status"] 
+    
+    def get_node(self, job_id: str):
+        """Get the node of the server."""
+        info = self.job_info(job_id)
+        status = info["status"]
+        if status == "R":
+            return info["node"]
+        return None
+
+    def ssh_call(self, cmd): 
+        cmd = ["ssh", self.remotehost, cmd]
+        status = subprocess.call(cmd)
+        return status   
 
     @print_stdout
     def ssh_execute(self, cmd):
@@ -103,15 +121,72 @@ class PBSServer:
         self,
         node: str = None,
         job_id: str = None,
+        short: bool = True,
     ) -> Tuple[str, str]:
         """Check the GPU usage on a node."""
         cmd = "nvidia-smi"
+        if short:
+            cmd += " -L;"
+            cmd += "nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv"
         if node is None:
             if job_id is None:
                 raise ValueError("Either node or job_id must be provided.")
             info_dict = self.job_info(job_id)
             node = info_dict["node"]
         stdout, stderr = self.ssh_jump_execute(cmd, target_node=node)
+        return stdout, stderr
+    
+    def check_file_exists(
+        self, 
+        remote_path: Path,
+    ) -> bool:
+        """Check if a file exists on the remote server."""
+        cmd = f"test -f {remote_path}"
+        status = self.ssh_call(cmd)
+        if status == 0:
+            return True
+        if status == 1:
+            return False
+        raise Exception(f"SSH: Error checking file existence: {status}")
+
+    def check_dir_exists(
+        self,
+        remote_path: Path,
+    ) -> bool:
+        """Check if a directory exists on the remote server."""
+        cmd = f"test -d {remote_path}"
+        status = self.ssh_call(cmd)
+        if status == 0:
+            return True
+        if status == 1:
+            return False
+        raise Exception(f"SSH: Error checking directory existence: {status}")
+
+    @property 
+    def hostname(self):
+        """Get the hostname of the remote server."""
+        cmd = "hostname"
+        stdout, stderr = self.ssh_execute(cmd)
+        return stdout, stderr
+    
+    def stat(
+        self,
+        job_id: str = None,
+        username: str = "$USER",
+    ):
+        """Get information about a job.
+
+        By default, filter by username if job_id is not provided.
+        """
+        # TODO: 
+        # `stat --interactive` option to see 'watch qstat' like output
+        # can interactively kill jobs or connect to nodes. 
+        if job_id is not None:
+            cmd = f"qstat {job_id}"
+        else:
+            cmd = f"qstat -u {username}"
+
+        stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
 
     @print_stdout
@@ -212,7 +287,6 @@ class PBSServer:
         ), f"Parse error: Fields and header mismatch: {len(fields)} vs {len(header)}"
 
         node_line = node_line.strip()
-        print("Node line:", node_line)
         if "/" not in node_line:
             node_name = node_line.strip()
             resources = None
@@ -231,7 +305,7 @@ class PBSServer:
         cmd = f"qdel {job_id}"
         stdout, stderr = self.ssh_execute(cmd)
         return stdout, stderr
-    
+
     def ls(self, path: str = ""):
         cmd = f"ls {path}"
         stdout, stderr = self.ssh_execute(cmd)

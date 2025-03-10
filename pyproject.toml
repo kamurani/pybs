@@ -11,8 +11,13 @@ requires-python = ">=3.9,<4.0"
 dependencies = [
     "click (>=8.1.8,<9.0.0)",
     "sshconf (>=0.2.7,<0.3.0)",
+    "setuptools (>=75.8.2,<76.0.0)",
+    "cleo (>=2.1.0,<3.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "rich (>=13.9.4,<14.0.0)",
     "loguru (>=0.7.3,<0.8.0)",
-    "setuptools (>=75.8.2,<76.0.0)"
+    "platformdirs (>=4.3.6,<5.0.0)",
+    "black[jupyter] (>=25.1.0,<26.0.0)"
 ]
 
 [tool.poetry]
@@ -21,7 +26,7 @@ packages = [
 ]
 
 [project.scripts]
-pybs = "pybs.console:entry_point"
+pybs = "pybs.console.console:entry_point"
 
 
 
