@@ -9,6 +9,29 @@ from pybs import NAME
 
 
 @ck.command()
+@ck.option(
+    "--key",
+    type=str,
+    help="Configuration key",
+)
+@ck.option(
+    "--value",
+    type=str,
+    help="Configuration value",
+)
+def config(
+    key: str,
+    value: str,
+):
+    """Set configuration options for PyBS.
+    
+    Usage: config [OPTIONS] [--] [<key> [<value>...]]
+
+
+    """
+    pass
+
+@ck.command()
 @ck.argument(
     "shell",
     required=False,

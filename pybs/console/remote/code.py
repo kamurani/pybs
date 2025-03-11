@@ -16,7 +16,7 @@ from rich.live import Live
 from rich.progress import Progress, ProgressColumn, Text
 
 from pybs.constants import JOB_STATUS_DICT, POLL_INTERVAL
-from pybs.console import custom_theme, _log_formatter
+from pybs.console.ui import custom_theme, _log_formatter
 from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
 from pybs.console.ui import CompactTimeColumn
