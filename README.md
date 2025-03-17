@@ -1,4 +1,6 @@
 [![PyPI version](https://badge.fury.io/py/pythonpbs.svg)](https://badge.fury.io/py/pythonpbs)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 
 # PyBS
 
