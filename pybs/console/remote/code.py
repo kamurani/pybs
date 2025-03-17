@@ -21,6 +21,7 @@ from pybs.server import PBSServer
 from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
 from pybs.console.ui import CompactTimeColumn
 
+
 console = Console(
     theme=custom_theme,
     # stderr=True,
@@ -167,9 +168,6 @@ def code(
                 syntax = Syntax(f.read(), "bash", line_numbers=True)
             
             console.print(syntax)
-
-
-
 
     # Expand path 
     with progress:
