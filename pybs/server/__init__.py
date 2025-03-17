@@ -54,6 +54,9 @@ class PBSServer:
         ), f"Specified hostname '{remotehost}' not found in ssh config"
         username = c.host(remotehost)["user"]
         self.username = username
+        self.remotehost = remotehost
+        self.address = c.host(remotehost)["hostname"]
+        self.full_remotehost = f"{self.username}@{self.address}"
 
         # log info using pretty colours for username
 

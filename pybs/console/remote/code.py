@@ -12,56 +12,14 @@ from loguru import logger as log
 from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
 from rich.console import Console, Group
 from rich.logging import RichHandler
-import rich.style
 from rich.live import Live
-from rich.theme import Theme
+from rich.progress import Progress, ProgressColumn, Text
 
-custom_theme = Theme(
-    {
-        "progress.description": "yellow bold",
-    }
-)
-
-
-JOB_STATUS_DICT = {
-    "C": "Completed",
-    "E": "Exiting",
-    "H": "Held",
-    "Q": "Queued",
-    "R": "Running",
-    "T": "Moving",
-    "W": "Waiting",
-    "S": "Suspended",
-    "B": "Batch",
-}
-
-
-def _log_formatter(
-    record: dict,
-    icon: bool = False,
-) -> str:
-    """Log message formatter"""
-    color_map = {
-        "TRACE": "dim blue",
-        "DEBUG": "cyan",
-        "INFO": "bold",
-        "SUCCESS": "bold green",
-        "WARNING": "yellow",
-        "ERROR": "bold red",
-        "CRITICAL": "bold white on red",
-    }
-    lvl_color = color_map.get(record["level"].name, "cyan")
-
-    if icon:
-        icon = "{level.icon}"
-    else:
-        icon = ""
-    return (
-        "[not bold green]{time:YYYY/MM/DD HH:mm:ss}[/not bold green] |"
-        + f"{icon}  - [{lvl_color}]{{message}}[/{lvl_color}]"
-        # Right-align code location:
-        + " [dim]{name}:{function}:{line}[/dim]"
-    )
+from pybs.constants import JOB_STATUS_DICT, POLL_INTERVAL
+from pybs.console import custom_theme, _log_formatter
+from pybs.server import PBSServer
+from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
+from pybs.console.ui import CompactTimeColumn
 
 
 console = Console(
@@ -85,66 +43,6 @@ log.add(
     format=log_format,
     level=level,
 )
-
-
-from pybs.server import PBSServer
-from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
-
-POLL_INTERVAL = 0.5
-
-
-# DONE:
-# - add tab autocompletion scripts
-# - add hostname tab completion (use ~/.ssh/config)
-# - fix logging for qsub wait
-# - add TUI timer for job submission
-# - add intelligent remote server expansion of paths example $SCRATCH
-# to avoid issue where VS code does not evaluate $ variables correctly. 
-# - add support for local job scripts
-
-# TODO:
-# - change character width on subcommand tab complete suggestions
-
-# - add help to ck args
-# - add tab complete for remote paths similar to `scp```
-# - add auto install of ssh config required hostname alias
-# - add arbitrary command execution for any method (with certain decorator)
-# from PBSServer class
-# e.g. write `qsub` and this will call the `qsub` method of the PBSServer class
-# if a method with that name exists.
-# - refactoring of PBSServer class to use `ssh_command` decorator
-# - add `config` command to add config items to a config file
-# such as turning debug on/off
-
-# Future TODO:
-# - add db for currently running jobs, able to login to
-# any server and see resources, walltime etc.
-# - add "autorefresh" or "keepalive" option to remember when the walltime will
-# expire, and request another GPU node that overlaps so we can keep the session logged
-# in on the same node.
-
-from rich.progress import Progress, ProgressColumn, Text
-from datetime import timedelta
-
-
-# TODO: make PR for this?
-class CompactTimeColumn(ProgressColumn):
-    """Renders time elapsed."""
-
-    def render(self, task: "Task") -> Text:
-        """Show time elapsed."""
-        elapsed = task.finished_time if task.finished else task.elapsed
-        if elapsed is None:
-            return Text("-:--:--", style="progress.elapsed")
-        delta = timedelta(seconds=max(0, elapsed))
-        # get number of seconds
-        n_seconds = delta.total_seconds()
-        # customise progress.elapsed to be gray text
-        # style = "progress.elapsed"
-        # style = "grey58"
-        style = "white"
-        return Text(f"({n_seconds:.1f}s)", style=style)
-
 
 @ck.command()
 @ck.argument(
@@ -204,9 +102,11 @@ def code(
     log.debug(f"Launching job on {hostname} with remote path {remote_path}")
     log.debug(f"Job script location: {job_script_location}")
 
+    
     if job_script_location is None:
         log.info(f"Checking if job script {job_script} exists...")
         if job_script.is_file():
+            job_script = job_script.resolve()
             log.info(f"Using local job script: {job_script}")
             job_script_location = "local"
         else:
@@ -218,18 +118,11 @@ def code(
     progress = Progress(
         SpinnerColumn(
             spinner_name="line",
-            # spinner_name="simpleDots",
-            # spinner_name="simpleDotsScrolling",
             style="blue",
         ),
         TextColumn("[progress.description]{task.description}", style="blue"),
-        # SpinnerColumn(
-        #     spinner_name="simpleDotsScrolling",
-        #     style="blue",
-        # ),
         CompactTimeColumn(),
     )
-
     monitor_job_status = Progress(
         SpinnerColumn(spinner_name="dots", style="white"),
         TextColumn(
@@ -239,19 +132,16 @@ def code(
         """,
             #style="blink bold black on yellow",
         ),
-        # TextColumn("[progress.description]{task.fields[job_status]}"),
-        # TextColumn("[progress.description]Node: {task.fields[node]}"),
-        # CompactTimeColumn(), # show 1dp of seconds (elapsed time)
     )
 
     import time
-
     # If remote, check if the file exists on the remote server
     server = PBSServer(hostname, verbose=verbose)
+    hostname_expanded = server.full_remotehost
     if job_script_location == "remote":
         with progress:
             task1 = progress.add_task(
-                f"Checking job script on [bold][white]{hostname}[/white][/bold] exists... ",
+                f"Checking job script on [bold][white]{hostname_expanded}[/white][/bold] exists... ",
                 total=1,
             )
             # expand remote path
@@ -259,10 +149,10 @@ def code(
             job_script = server.expand_remote_path(job_script)
             log.info(f"--> {job_script}")
             if not server.check_file_exists(job_script):
-                log.error(f"Job script {job_script} not found on {hostname}. Exiting.")
+                log.error(f"Job script {job_script} not found on {hostname_expanded}. Exiting.")
                 return
             else:
-                log.info(f"Job script found on {hostname}.")
+                log.info(f"Job script found on {hostname_expanded}.")
                 # mark progress as complete
                 progress.update(task1, completed=True)
 
@@ -279,13 +169,10 @@ def code(
             
             console.print(syntax)
 
-
-
-
     # Expand path 
     with progress:
         task = progress.add_task(
-            f"Expanding remote path on [bold][white]{hostname}[/white][/bold]... ",
+            f"Expanding remote path on [bold][white]{hostname_expanded}[/white][/bold]... ",
             total=1,
         )
         log.info(f"Expanding remote path {remote_path}")
@@ -301,16 +188,16 @@ def code(
     else:
         with progress:
             task1 = progress.add_task(
-                f"Checking that workspace directory on [bold][white]{hostname}[/white][/bold] exists... ",
+                f"Checking that workspace directory on [bold][white]{hostname_expanded}[/white][/bold] exists... ",
                 total=1,
             )
             if not server.check_dir_exists(remote_path):
                 log.error(
-                    f"Remote path {remote_path} not found on {hostname}. Exiting."
+                    f"Remote path {remote_path} not found on {hostname_expanded}. Exiting."
                 )
                 return
             else:
-                log.info(f"Remote path {remote_path} found on {hostname}.")
+                log.info(f"Remote path {remote_path} found on {hostname_expanded}.")
                 # mark progress as complete
                 progress.update(task1, completed=True)
 
@@ -439,7 +326,10 @@ def code(
         # Clear all tasks from progress
         ids = progress.task_ids
         for task_id in ids:
-            progress.remove_task(task_id)
+            progress.remove_task(task_id) 
+
+        for task_id in monitor_job_status.task_ids:
+            monitor_job_status.remove_task(task_id)
 
         progress_group = Group(
             progress,
