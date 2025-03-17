@@ -1,3 +1,5 @@
+[![PyPI version](https://badge.fury.io/py/pythonpbs.svg)](https://badge.fury.io/py/pythonpbs)
+
 # PyBS
 
 ## Installation 
