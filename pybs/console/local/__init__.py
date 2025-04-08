@@ -53,7 +53,33 @@ def completions(
 def version():
     """Show the current version of PyBS."""
     pkg_name = f"{ck.get_current_context().parent.info_name}"  # this is `pybs`, not the package name
-
     import pybs
-
     ck.echo(f"{NAME} {pybs.__version__}")
+
+@ck.command()
+@ck.argument(
+    "command",
+    required=False,
+    type=ck.STRING, 
+    #default="",
+)
+def help(
+    command: str,
+):
+    """Displays help for a command."""
+    # run `pybs --help` to get the help message
+    if command is None:
+        ck.echo(os.popen(f"pybs --help").read())
+        ck.echo(
+            """Help: 
+  Use `pybs help [COMMAND]` to get help on a specific command."""
+        )
+    
+    else: 
+        # run `pybs [command] --help` to get the help message
+        ck.echo(os.popen(f"pybs {command} --help").read())
+
+        # TODO: is there a better way to do this?
+        # does click library have a function that we can call to generate the help message?
+        
+   

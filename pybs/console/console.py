@@ -7,6 +7,7 @@ from pybs.console.remote import code
 from pybs.console.local import (
     completions,
     version,
+    help,
 )
 
 MAX_CONTENT_WIDTH = 120
@@ -23,6 +24,7 @@ def entry_point():
 
 entry_point.add_command(completions)
 entry_point.add_command(version)
+entry_point.add_command(help)
 entry_point.add_command(code)
 entry_point.add_command(q.stat)
 entry_point.add_command(q.sub)
