@@ -1,5 +1,6 @@
 """Constants for PyBS."""
 
+from pybs import DEFAULT_PBS_SCRIPT_PATH
 POLL_INTERVAL = 0.5
 
 JOB_STATUS_DICT = {

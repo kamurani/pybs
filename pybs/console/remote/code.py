@@ -6,7 +6,7 @@ import click as ck
 import subprocess
 
 from time import sleep
-from typing import Literal
+from typing import Literal, Tuple
 from pathlib import Path
 from loguru import logger as log
 from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
@@ -15,11 +15,11 @@ from rich.logging import RichHandler
 from rich.live import Live
 from rich.progress import Progress, ProgressColumn, Text
 
-from pybs.constants import JOB_STATUS_DICT, POLL_INTERVAL
-from pybs.console import custom_theme, _log_formatter
+from pybs.constants import JOB_STATUS_DICT, POLL_INTERVAL, DEFAULT_PBS_SCRIPT_PATH
 from pybs.server import PBSServer
-from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
+from pybs.console import custom_theme, _log_formatter
 from pybs.console.ui import CompactTimeColumn
+from pybs.console.tabcomplete import complete_remote_path, complete_hostname, complete_job_script
 
 
 console = Console(
@@ -53,21 +53,26 @@ log.add(
 )
 @ck.argument(
     "remote_path",
+    nargs=-1,
     type=ck.Path(
         exists=False,
         path_type=Path,
     ),
     shell_complete=complete_remote_path,
 )
-@ck.argument(
-    "job_script",
+@ck.option(
+    "--job-script",
     type=ck.Path(
         exists=False,
         path_type=Path,
     ),
     #shell_complete=complete_job_script,
-    # help="Path to the job script to run on the remote server.  May be a local or remote path.",
+    help="Path to the job script to run on the remote server.  May be a local or remote path.",
+    default=DEFAULT_PBS_SCRIPT_PATH,
+    show_default=True,
+
 )
+
 @ck.option("--job-script-location", type=ck.Choice(["local", "remote"]), default=None)
 @ck.option("--debug/--no-debug", default=False)
 @ck.option("--verbose/--no-verbose", default=False)
@@ -83,9 +88,21 @@ log.add(
     help="If enabled, skips checking remote file existence and GPU usage check."
     "This may be useful for launching more quickly.",
 )
+@ck.option(
+    "--new-window", is_flag=True, 
+)
+@ck.option(
+    "--reuse-window", is_flag=True, 
+)
+@ck.option(
+    "--wait", is_flag=True, 
+)
+@ck.option(
+    "--profile", 
+)
 def code(
     hostname: str,
-    remote_path: Path,
+    remote_path: Tuple[Path],
     job_script: Path,
     job_script_location: Literal["local", "remote"] = None,
     debug: bool = False,
@@ -94,6 +111,12 @@ def code(
     killswitch: bool = False,
     skip_check: bool = False,
     show_job_file: bool = False, 
+
+    # VS code CLI options: 
+    new_window: bool = False, 
+    reuse_window: bool = False, 
+    wait: bool = False, 
+    profile: str = None, 
 ):
     """Launch a job on a remote server and open VScode.
 
@@ -176,11 +199,15 @@ def code(
             total=1,
         )
         log.info(f"Expanding remote path {remote_path}")
-        remote_path = server.expand_remote_path(remote_path)
+        remote_path = [
+            server.expand_remote_path(r)
+            for r in remote_path
+        ]
         log.info(f"--> {remote_path}") 
         progress.update(task, completed=True)
     
     progress.remove_task(task)
+    
 
     # Check directory
     if skip_check:
@@ -191,15 +218,25 @@ def code(
                 f"Checking that workspace directory on [bold][white]{hostname_expanded}[/white][/bold] exists... ",
                 total=1,
             )
-            if not server.check_dir_exists(remote_path):
+            checked = []
+            for r in remote_path:
+                if not server.check_dir_exists(r):
+                    log.error(
+                        f"Remote path {r} not found on {hostname_expanded}. Continuing..."
+                    )
+                    
+                else:
+                    log.info(f"Remote path {r} found on {hostname_expanded}.")
+                    # mark progress as complete
+                    progress.update(task1, completed=True)
+                    checked.append(r)
+            if len(checked) == 0:
                 log.error(
-                    f"Remote path {remote_path} not found on {hostname_expanded}. Exiting."
+                    f"No remote paths found on {hostname_expanded}. Exiting."
                 )
                 return
             else:
-                log.info(f"Remote path {remote_path} found on {hostname_expanded}.")
-                # mark progress as complete
-                progress.update(task1, completed=True)
+                log.info(f"Remote paths found on {hostname_expanded}: {checked}")
 
         progress.remove_task(
             task1
@@ -255,6 +292,10 @@ def code(
                 monitor_job_status.update(
                     task5, job_status=status_display, node=node_display
                 )
+
+
+                # TODO: 
+                # if user presses Ctrl+C during Queuing, we need to wait for the job to be assigned in order to kill it.
 
                 # Update progress display
                 if status == "Q" and task4 in progress.task_ids:
@@ -313,9 +354,8 @@ def code(
         target_name = f"{hostname}-{node}"
         if verbose:
             print(f"Launching VScode on {target_name}...")
-        cmd_list = ["code", "--remote", f"ssh-remote+{target_name}", remote_path]
-        if debug:
-            print(cmd_list)
+        cmd_list = ["code", "--remote", f"ssh-remote+{target_name}"] + remote_path
+        log.debug(f"Command: {cmd_list}")
         captured = subprocess.run(
             cmd_list,
             capture_output=True,

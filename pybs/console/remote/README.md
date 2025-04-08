@@ -1,7 +1,11 @@
 ### TODO: 
 
 
-- prevent need for changing user's `~/.ssh/config` by instead changing the default VS code ssh connection command, such as the following:
+* add support for `code`-specific CLI arguments being provided 
+* add support for using a file containing CLI arguments already there (config yaml file?) 
+* add support for multiple files / directories being opened on the remote server 
+
+* prevent need for changing user's `~/.ssh/config` by instead changing the default VS code ssh connection command, such as the following:
 
 ```
 [09:26:12.233] Spawned 63186
