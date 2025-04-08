@@ -23,7 +23,7 @@ dependencies = [
 packages = [
     {include = "pybs", from = "."}
 ]
-version = "0.1.4"
+version = "0.1.5"
 
 [project.scripts]
 pybs = "pybs.console.console:entry_point"
