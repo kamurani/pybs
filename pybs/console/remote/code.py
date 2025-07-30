@@ -13,7 +13,7 @@ from rich.progress import Progress, TimeElapsedColumn, SpinnerColumn, TextColumn
 from rich.console import Console, Group
 from rich.logging import RichHandler
 from rich.live import Live
-from rich.progress import Progress, ProgressColumn, Text
+from rich.progress import Progress, ProgressColumn
 
 from pybs.constants import JOB_STATUS_DICT, POLL_INTERVAL, DEFAULT_PBS_SCRIPT_PATH
 from pybs.server import PBSServer
@@ -25,6 +25,7 @@ from pybs.console.tabcomplete import complete_remote_path, complete_hostname, co
 console = Console(
     theme=custom_theme,
     # stderr=True,
+    stderr=True, 
 )
 # Check that theme is set properly:
 # console.print(f"[progress.description]Logging level: {"TRACE"}") #style="bold blue")
@@ -34,8 +35,11 @@ handler = RichHandler(
     show_level=True,
     # console=console, # if this is enabled, it will print the `progress` instances twice
 )
-level = "TRACE"
-# level = "WARNING"
+level = "WARNING"  # tabcomplete doesn't work with TRACE or DEBUG level for some reason. 
+level = "DEBUG"
+level = "INFO"
+level = "TRACE" 
+
 log.remove()
 log.add(
     handler,
@@ -70,9 +74,7 @@ log.add(
     help="Path to the job script to run on the remote server.  May be a local or remote path.",
     default=DEFAULT_PBS_SCRIPT_PATH,
     show_default=True,
-
 )
-
 @ck.option("--job-script-location", type=ck.Choice(["local", "remote"]), default=None)
 @ck.option("--debug/--no-debug", default=False)
 @ck.option("--verbose/--no-verbose", default=False)
@@ -147,7 +149,6 @@ def code(
         CompactTimeColumn(),
     )
     monitor_job_status = Progress(
-        SpinnerColumn(spinner_name="dots", style="white"),
         TextColumn(
             """
         Status:     {task.fields[job_status]}

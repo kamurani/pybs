@@ -4,6 +4,7 @@ import sys
 import click as ck
 import subprocess
 
+from click.shell_completion import CompletionItem
 from pathlib import Path
 from os.path import expanduser
 from loguru import logger as log
@@ -15,11 +16,10 @@ from pybs.server import PBSServer
 
 def complete_remote_path(ctx, param, incomplete):
     """Tab completion for REMOTE_PATH CLI argument."""
-    log.debug(f"Completing {param}: {incomplete}")
-    log.debug(f"Context: {ctx.params}")
+    log.info(f"Completing {param}: {incomplete}")
+    log.info(f"Context: {ctx.params}")
 
     hostname = ctx.params["hostname"]
-
     server = PBSServer(hostname)
 
     # Generate list of remote paths that match the incomplete string
@@ -30,9 +30,9 @@ def complete_remote_path(ctx, param, incomplete):
     partial = str(path.parent)
     incomplete = path.name
 
-    stdout, stderr = server.ls(f"{partial}*")
+    stdout, stderr = server.ls(f"~/{partial}*")
 
-    log.debug(f"stdout: {stdout}")
+    ck.echo(f"stdout: {stdout}", err=True)
     log.debug(f"stderr: {stderr}")
 
     remote_paths = stdout.split("\n")
@@ -43,11 +43,15 @@ def complete_remote_path(ctx, param, incomplete):
 
 def complete_hostname(ctx, param, incomplete):
     """Tab completion for HOSTNAME CLI argument."""
-    log.debug(f"Completing {param}: {incomplete}")
-    log.debug(f"Context: {ctx.params}")
+    #log.info(f"Completing {param}: {incomplete}")
+    #log.info(f"Context: {ctx.params}") 
+    # NOTE: for some reason, if these `log.info` calls are enabled, the tab completion stops working.
+    
+    #ck.echo(f"Completing {param}: {incomplete}", err=True)
+
     c = read_ssh_config(expanduser(SSH_CONFIG_PATH))
     hostnames = c.hosts()
-    return [h for h in hostnames if incomplete in h]
+    return [CompletionItem(h) for h in hostnames if incomplete in h]
 
 def complete_job_script(ctx, param, incomplete):
     """Tab completion for JOB_SCRIPT CLI argument."""

@@ -25,6 +25,8 @@ class PBSServer:
         The hostname of the remote server.
     print_output : bool
         Whether to print the output of the commands.
+    verbose : bool
+        Whether to print verbose output.
 
     """
 
@@ -46,7 +48,7 @@ class PBSServer:
         c = read_ssh_config(ssh_config_path)
         hostnames = c.hosts()
         if self.verbose:
-            print(f"Found {len(hostnames)} hostnames in ssh config")
+            log.info(f"Found {len(hostnames)} hostnames in ssh config")
 
         # check that supplied hostname is in the ssh config
         assert (
