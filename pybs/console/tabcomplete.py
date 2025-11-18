@@ -51,7 +51,7 @@ def complete_hostname(ctx, param, incomplete):
 
     c = read_ssh_config(expanduser(SSH_CONFIG_PATH))
     hostnames = c.hosts()
-    return [CompletionItem(h) for h in hostnames if incomplete in h]
+    return [CompletionItem(h) for hf in hostnames if incomplete in h]
 
 def complete_job_script(ctx, param, incomplete):
     """Tab completion for JOB_SCRIPT CLI argument."""
